@@ -266,6 +266,8 @@ class _GroupedListViewState<T, E> extends State<GroupedListView<T, E>> {
       });
     }
 
+    print('🛑 rebuilding');
+
     return Stack(
       key: _key,
       alignment: Alignment.topCenter,
@@ -310,15 +312,12 @@ class _GroupedListViewState<T, E> extends State<GroupedListView<T, E>> {
             return _buildItem(context, actualIndex);
           },
         ),
-        StreamBuilder<int>(
+        if (widget.useStickyGroupSeparators)
+          _StickyGroupSeparator(
             stream: _streamController.stream,
             initialData: _topElementIndex,
-            builder: (context, snapshot) {
-              if (snapshot.hasData) {
-                return _showFixedGroupHeader(snapshot.data!);
-              }
-              return Container();
-            }),
+            builder: _showFixedGroupHeader,
+          ),
       ],
     );
   }
@@ -397,25 +396,25 @@ class _GroupedListViewState<T, E> extends State<GroupedListView<T, E>> {
   }
 
   Widget _showFixedGroupHeader(int topElementIndex) {
-    _groupHeaderKey = GlobalKey();
-    if (widget.useStickyGroupSeparators && widget.elements.isNotEmpty) {
-      T topElement;
-
-      try {
-        topElement = _sortedElements[topElementIndex];
-      } on RangeError catch (_) {
-        topElement = _sortedElements[0];
-      }
-
-      return Container(
-        key: _groupHeaderKey,
-        color:
-            widget.floatingHeader ? null : widget.stickyHeaderBackgroundColor,
-        width: widget.floatingHeader ? null : MediaQuery.of(context).size.width,
-        child: _buildGroupSeparator(topElement),
-      );
+    if (widget.elements.isEmpty) {
+      return SizedBox.shrink();
     }
-    return Container();
+
+    T topElement;
+
+    try {
+      topElement = _sortedElements[topElementIndex];
+    } on RangeError catch (_) {
+      topElement = _sortedElements[0];
+    }
+
+    return Container(
+      key: ObjectKey(topElement),
+      color:
+          widget.floatingHeader ? null : widget.stickyHeaderBackgroundColor,
+      width: widget.floatingHeader ? null : MediaQuery.of(context).size.width,
+      child: _buildGroupSeparator(topElement),
+    );
   }
 
   bool _isListItemRendered(GlobalKey<State<StatefulWidget>> key) {
@@ -428,5 +427,33 @@ class _GroupedListViewState<T, E> extends State<GroupedListView<T, E>> {
       return widget.groupSeparatorBuilder!(widget.groupBy(element));
     }
     return widget.groupHeaderBuilder!(element);
+  }
+}
+
+class _StickyGroupSeparator extends StatelessWidget {
+  const _StickyGroupSeparator({
+    Key? key,
+    required this.stream,
+    required this.initialData,
+    required this.builder,
+  }) : super(key: key);
+
+  final Stream<int> stream;
+  final int initialData;
+  final Widget Function(int) builder;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<int>(
+      stream: stream,
+      initialData: initialData,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return builder(snapshot.data!);
+          // return _showFixedGroupHeader(snapshot.data!);
+        }
+        return SizedBox.shrink();
+      },
+    );
   }
 }
